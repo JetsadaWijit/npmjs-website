@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>buildRepos - Documentation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .code-block {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">buildRepos - Documentation</h1>
+
+        <section>
+            <h2>Code</h2>
+            <pre class="code-block"><code>const axios = require('axios');
+const path = require('path');
+const { readPropertiesFile, replacePlaceholders } = require('../essential');
+
+/*
+    @param org = String
+    @param repos = Array
+    @param vis = String
+    @param token = String
+*/
+async function buildRepos(org, repos, vis, token) {
+    const filePath = path.join(__dirname, 'properties', 'api.properties');
+    const config = readPropertiesFile(filePath);
+
+    if (!config.repourl) {
+        throw new Error("Repository URL is missing in the configuration.");
+    }
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+    };
+
+    const retryLimit = 3;
+    const createGitHubRepo = async (repo, attempt = 1) => {
+        const replacements = { organization: org };
+        const data = { name: repo, visibility: vis };
+
+        try {
+            const createResponse = await axios.post(replacePlaceholders(config.repourl, replacements), data, { headers });
+
+            if (createResponse.status === 201) {
+                return { success: true, message: 'GitHub repository created successfully', repositoryName: repo, organizationName: org };
+            } else {
+                return { success: false, message: 'Failed to create GitHub repository', status: createResponse.status };
+            }
+        } catch (error) {
+            if (attempt < retryLimit) {
+                return createGitHubRepo(repo, attempt + 1);
+            }
+            console.error('Error:', error.message);
+            return { success: false, message: 'Internal server error', status: error.response?.status };
+        }
+    };
+
+    const results = await Promise.all(repos.map(repo => createGitHubRepo(repo)));
+
+    return results;
+}
+
+module.exports = buildRepos;</code></pre>
+        </section>
+
+        <section>
+            <h2>Usage</h2>
+            <pre class="code-block"><code>/*
+    @param org = String
+    @param repos = Array
+    @param vis = String
+    @param token = String
+*/
+const { buildRepos } = require('jwz/github');
+
+const org = 'your-org-name';
+const repos = ['your-repoA', 'your-repoB'];
+const vis = 'public';
+const token = 'your-token';
+
+const res = await buildRepos(org, repos, vis, token);
+console.log(res);</code></pre>
+        </section>
+
+        <section>
+            <h2>Explanation</h2>
+            <p>
+                The <code>buildRepos</code> function is a utility for programmatically creating GitHub repositories. It reads configurations from an external properties file and uses Axios for API requests. Here's a breakdown:
+            </p>
+            <ul>
+                <li><strong>Parameters:</strong>
+                    <ul>
+                        <li><code>org</code>: The name of the GitHub organization where the repositories will be created.</li>
+                        <li><code>repos</code>: An array of repository names to be created.</li>
+                        <li><code>vis</code>: The visibility of the repositories (e.g., <code>'public'</code> or <code>'private'</code>).</li>
+                        <li><code>token</code>: A GitHub personal access token for authentication.</li>
+                    </ul>
+                </li>
+                <li><strong>Logic:</strong>
+                    <ul>
+                        <li>Reads the API endpoint URL from a properties file.</li>
+                        <li>Constructs headers with the authentication token.</li>
+                        <li>Retries up to 3 times for failed requests.</li>
+                        <li>Creates repositories by calling the GitHub API.</li>
+                    </ul>
+                </li>
+                <li><strong>Output:</strong>
+                    <ul>
+                        <li>An array of results, where each result contains the success status, message, and repository details.</li>
+                    </ul>
+                </li>
+            </ul>
+        </section>
+    </div>
+</body>
+</html>

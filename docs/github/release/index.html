@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>getReleaseVersion - Documentation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .code-block {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">getReleaseVersion - Documentation</h1>
+
+        <section>
+            <h2>Code</h2>
+            <pre class="code-block"><code>const axios = require('axios');
+const path = require('path');
+const { readPropertiesFile, replacePlaceholders } = require('../essential');
+
+async function getReleaseVersion(org, repo, version) {
+    const filePath = path.join(__dirname, 'properties', 'api.properties');
+    const config = readPropertiesFile(filePath);
+
+    if (!config.reporeleaseurl) {
+        throw new Error("Release URL is missing in the configuration.");
+    }
+
+    const replacements = { organization: org, repository: repo };
+
+    try {
+        const response = await axios.get(replacePlaceholders(config.reporeleaseurl, replacements));
+        const release = response.data.find(r => r.tag_name === version);
+
+        if (release) {
+            return { success: true, releaseName: release.name, releaseTag: release.tag_name, releaseURL: release.html_url };
+        } else {
+            return { success: false, message: `Release ${version} not found.` };
+        }
+    } catch (error) {
+        console.error('Error fetching GitHub release:', error.message);
+        return { success: false, message: error.message };
+    }
+}
+
+module.exports = getReleaseVersion;</code></pre>
+        </section>
+
+        <section>
+            <h2>Usage</h2>
+            <pre class="code-block"><code>/*
+    @param org = String
+    @param repo = String
+    @param token = String
+*/
+const { getReleaseVersion } = require('jwz/github');
+
+const org = 'your-org-name';
+const repo = 'your-repo-name';
+const version = 'v1.0.0';
+
+const res = await getReleaseVersion(org, repo, version);
+console.log(res);</code></pre>
+        </section>
+
+        <section>
+            <h2>Explanation</h2>
+            <p>
+                The <code>getReleaseVersion</code> function is a utility for fetching specific release details from a GitHub repository. It uses Axios for making API requests and supports dynamic URL construction. Here's a breakdown:
+            </p>
+            <ul>
+                <li><strong>Parameters:</strong>
+                    <ul>
+                        <li><code>org</code>: The name of the GitHub organization or user that owns the repository.</li>
+                        <li><code>repo</code>: The name of the repository from which the release details are fetched.</li>
+                        <li><code>version</code>: The tag name of the release to retrieve (e.g., <code>'v1.0.0'</code>).</li>
+                    </ul>
+                </li>
+                <li><strong>Logic:</strong>
+                    <ul>
+                        <li>Reads the API endpoint URL from a properties file.</li>
+                        <li>Replaces placeholders in the URL with the organization and repository names.</li>
+                        <li>Fetches the list of releases from the GitHub API.</li>
+                        <li>Finds and returns the release matching the specified version.</li>
+                    </ul>
+                </li>
+                <li><strong>Output:</strong>
+                    <ul>
+                        <li>If the release is found:
+                            <ul>
+                                <li><code>success</code>: <code>true</code></li>
+                                <li><code>releaseName</code>: Name of the release</li>
+                                <li><code>releaseTag</code>: Tag name of the release</li>
+                                <li><code>releaseURL</code>: URL of the release</li>
+                            </ul>
+                        </li>
+                        <li>If the release is not found:
+                            <ul>
+                                <li><code>success</code>: <code>false</code></li>
+                                <li><code>message</code>: An error message indicating the release is not found.</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+                <li><strong>Error Handling:</strong>
+                    <ul>
+                        <li>Logs an error message if the API request fails.</li>
+                        <li>Returns a failure response with the error message.</li>
+                    </ul>
+                </li>
+            </ul>
+        </section>
+    </div>
+</body>
+</html>

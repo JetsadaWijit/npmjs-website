@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>deleteRepos - Documentation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .code-block {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">deleteRepos - Documentation</h1>
+
+        <section>
+            <h2>Code</h2>
+            <pre class="code-block"><code>const axios = require('axios');
+const path = require('path');
+const { readPropertiesFile, replacePlaceholders } = require('../essential');
+
+async function deleteRepos(org, repos, token) {
+    const filePath = path.join(__dirname, 'properties', 'api.properties');
+    const config = readPropertiesFile(filePath);
+
+    if (!config.repospecificurl) {
+        throw new Error("Repository-specific URL is missing in the configuration.");
+    }
+
+    try {
+        const deleteRequests = repos.map(async repo => {
+            const replacements = { organization: org, repository: repo };
+            return await axios.delete(replacePlaceholders(config.repospecificurl, replacements), {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+        });
+
+        return await Promise.all(deleteRequests);
+    } catch (error) {
+        console.error('Error deleting GitHub repos:', error);
+        throw error;
+    }
+}
+
+module.exports = deleteRepos;</code></pre>
+        </section>
+
+        <section>
+            <h2>Usage</h2>
+            <pre class="code-block"><code>/*
+    @param org = String
+    @param repos = Array
+    @param token = String
+*/
+const { deleteRepos } = require('jwz/github');
+
+const org = 'your-org-name';
+const repos = ['your-repoA', 'your-repoB'];
+const token = 'your-token';
+
+const res = await deleteRepos(org, repos, token);
+console.log(res);</code></pre>
+        </section>
+
+        <section>
+            <h2>Explanation</h2>
+            <p>
+                The <code>deleteRepos</code> function is a utility for programmatically deleting GitHub repositories within an organization. It reads configurations from an external properties file and uses Axios for API requests. Here's a breakdown:
+            </p>
+            <ul>
+                <li><strong>Parameters:</strong>
+                    <ul>
+                        <li><code>org</code>: The name of the GitHub organization from which the repositories will be deleted.</li>
+                        <li><code>repos</code>: An array of repository names to be deleted.</li>
+                        <li><code>token</code>: A GitHub personal access token for authentication.</li>
+                    </ul>
+                </li>
+                <li><strong>Logic:</strong>
+                    <ul>
+                        <li>Reads the repository-specific URL from a properties file.</li>
+                        <li>Constructs a delete request for each repository using the GitHub API.</li>
+                        <li>Executes all delete requests concurrently using <code>Promise.all</code>.</li>
+                        <li>Handles and logs any errors encountered during the process.</li>
+                    </ul>
+                </li>
+                <li><strong>Output:</strong>
+                    <ul>
+                        <li>An array of responses for each delete request, where each response contains the result of the deletion.</li>
+                    </ul>
+                </li>
+            </ul>
+        </section>
+    </div>
+</body>
+</html>

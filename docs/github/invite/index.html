@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>inviteCollaboratorsToRepos - Documentation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .code-block {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">inviteCollaboratorsToRepos - Documentation</h1>
+
+        <section>
+            <h2>Code</h2>
+            <pre class="code-block"><code>const axios = require('axios');
+const path = require('path');
+const { readPropertiesFile, replacePlaceholders } = require('../essential');
+
+async function inviteCollaboratorsToRepos(org, repos, collaborators, token) {
+    const filePath = path.join(__dirname, 'properties', 'api.properties');
+    const config = readPropertiesFile(filePath);
+
+    if (!config.repocollaboratorurl) {
+        throw new Error("Collaborator URL is missing in the configuration.");
+    }
+
+    const results = await Promise.all(repos.map(async (repo, i) => {
+        const repoResults = [];
+        for (let j = 0; j < collaborators[i].length; j++) {
+            const replacements = { organization: org, repository: repo, collaborator: collaborators[i][j] };
+            try {
+                await axios.put(replacePlaceholders(config.repocollaboratorurl, replacements), {}, {
+                    headers: {
+                        Authorization: \`Bearer ${token}\`,
+                        Accept: 'application/vnd.github.v3+json',
+                    },
+                });
+                repoResults.push({ collaborator: collaborators[i][j], success: true });
+            } catch (error) {
+                repoResults.push({ collaborator: collaborators[i][j], success: false, error: error.message });
+            }
+        }
+        return { repo, results: repoResults };
+    }));
+
+    return results;
+}
+
+module.exports = inviteCollaboratorsToRepos;</code></pre>
+        </section>
+
+        <section>
+            <h2>Usage</h2>
+            <pre class="code-block"><code>/*
+    @param org = String
+    @param repos = Array
+    @param collaborators = Array
+    @param token = String
+*/
+const { inviteCollaboratorsToRepos } = require('jwz/github');
+
+const org = 'your-org-name';
+const repos = ['your-repoA', 'your-repoB'];
+const collaborators = [['collaboratorA1', 'collaboratorA2'], ['collaboratorB1']];
+const token = 'your-token';
+
+const res = await inviteCollaboratorsToRepos(org, repos, collaborators, token);
+console.log(res);</code></pre>
+        </section>
+
+        <section>
+            <h2>Explanation</h2>
+            <p>
+                The <code>inviteCollaboratorsToRepos</code> function invites collaborators to specific GitHub repositories within an organization. It reads configuration details from an external properties file and uses Axios for API requests. Here's a breakdown:
+            </p>
+            <ul>
+                <li><strong>Parameters:</strong>
+                    <ul>
+                        <li><code>org</code>: The name of the GitHub organization.</li>
+                        <li><code>repos</code>: An array of repository names where collaborators will be invited.</li>
+                        <li><code>collaborators</code>: A nested array of collaborators to invite for each repository. Each sub-array corresponds to a repository in the <code>repos</code> array.</li>
+                        <li><code>token</code>: A GitHub personal access token for authentication.</li>
+                    </ul>
+                </li>
+                <li><strong>Logic:</strong>
+                    <ul>
+                        <li>Reads the collaborator API URL from a properties file.</li>
+                        <li>Iterates over repositories and their respective collaborators.</li>
+                        <li>Uses the GitHub API to send invitations to collaborators.</li>
+                        <li>Handles errors and retries for each collaborator.</li>
+                    </ul>
+                </li>
+                <li><strong>Output:</strong>
+                    <ul>
+                        <li>An array of results, where each result contains:
+                            <ul>
+                                <li><code>repo</code>: The repository name.</li>
+                                <li><code>results</code>: An array of objects with each collaborator's success status and error details (if any).</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </section>
+    </div>
+</body>
+</html>
