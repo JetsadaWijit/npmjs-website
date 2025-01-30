@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>deleteRepos - GitLab Documentation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .code-block {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">deleteRepos - GitLab Documentation</h1>
+
+        <section>
+            <h2>Code</h2>
+            <pre class="code-block"><code>const axios = require('axios');
+const path = require('path');
+const { readPropertiesFile, replacePlaceholders } = require('../essential');
+
+/**
+ * Deletes multiple repositories from a GitLab group.
+ *
+ * @param {string} groupId - The ID of the GitLab group.
+ * @param {string[]} repoIds - An array of repository IDs to delete.
+ * @param {string} token - The GitLab access token for authentication.
+ * @returns {Promise&lt;Object&gt;} - An array of objects containing the deletion status of each repository.
+ */
+async function deleteGroupRepos(groupId, repoIds, token) {
+    return deleteRepos(repoIds, token, { group_id: groupId });
+}
+
+/**
+ * Deletes multiple personal repositories from GitLab.
+ *
+ * @param {string[]} repoIds - An array of repository IDs to delete.
+ * @param {string} token - The GitLab access token for authentication.
+ * @returns {Promise&lt;Object&gt;} - An array of objects containing the deletion status of each repository.
+ */
+async function deletePersonalRepos(repoIds, token) {
+    return deleteRepos(repoIds, token);
+}
+
+/**
+ * Deletes repositories from GitLab.
+ *
+ * @param {string[]} repoIds - An array of repository IDs to delete.
+ * @param {string} token - The GitLab access token for authentication.
+ * @param {object} replacements - Placeholder replacements for API URLs.
+ * @returns {Promise&lt;Object&gt;} - An array of objects containing the deletion status of each repository.
+ */
+async function deleteRepos(repoIds, token, replacements = {}) {
+    const filePath = path.join(__dirname, 'properties', 'api.properties');
+    const config = readPropertiesFile(filePath);
+
+    if (!config || !config.repospecificurl) {
+        throw new Error("Repository-specific URL is missing in the configuration.");
+    }
+
+    try {
+        const deleteRequests = repoIds.map(async (repoId) => {
+            const updatedReplacements = { ...replacements, project_id: repoId };
+            const url = replacePlaceholders(config.repospecificurl, updatedReplacements);
+
+            console.log(`Deleting repo ${repoId} at URL: ${url}`);
+
+            try {
+                const response = await axios.delete(url, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                return { repoId, status: 'success', data: response.data };
+            } catch (error) {
+                return {
+                    repoId,
+                    status: 'failed',
+                    error: error.response?.data || error.message,
+                };
+            }
+        });
+
+        const results = await Promise.all(deleteRequests);
+
+        const failed = results.filter((result) => result.status === 'failed');
+        if (failed.length > 0) {
+            console.warn('Some repositories failed to delete:', JSON.stringify(failed, null, 2));
+        }
+
+        return results;
+    } catch (error) {
+        console.error('Error deleting GitLab repos:', error);
+        throw error;
+    }
+}
+
+module.exports = { deleteGroupRepos, deletePersonalRepos };</code></pre>
+        </section>
+
+        <section>
+            <h2>Usage</h2>
+            <pre class="code-block"><code>/*
+    @param groupId = String
+    @param repoIds = Array
+    @param token = String
+*/
+const { deleteGroupRepos, deletePersonalRepos } = require('jwz/gitlab'); // Adjust to the appropriate module
+
+const groupId = 'your-group-id';  // Replace with your GitLab group ID
+const repoIds = ['repo-id1', 'repo-id2'];  // List of repository IDs to delete
+const token = 'your-token';  // Your GitLab API token
+
+// Deleting repositories from a group
+const groupDeleteRes = await deleteGroupRepos(groupId, repoIds, token);
+console.log('Group Deletion Result:', groupDeleteRes);
+
+// Deleting personal repositories
+const personalDeleteRes = await deletePersonalRepos(repoIds, token);
+console.log('Personal Deletion Result:', personalDeleteRes);</code></pre>
+        </section>
+
+        <section>
+            <h2>Explanation</h2>
+            <p>
+                The <code>deleteRepos</code> function allows deleting multiple repositories from GitLab. It utilizes an API properties file to determine the deletion URL and sends authenticated DELETE requests using Axios.
+            </p>
+            <ul>
+                <li><strong>Parameters:</strong>
+                    <ul>
+                        <li><code>groupId</code>: The GitLab group ID (optional, required for group repositories).</li>
+                        <li><code>repoIds</code>: An array of repository IDs to delete.</li>
+                        <li><code>token</code>: A GitLab personal access token for authentication.</li>
+                    </ul>
+                </li>
+                <li><strong>Logic:</strong>
+                    <ul>
+                        <li>Reads API endpoint from a properties file.</li>
+                        <li>Constructs headers with the authentication token.</li>
+                        <li>Iterates over repository IDs and deletes them via GitLab API.</li>
+                        <li>Handles errors and logs failed deletions.</li>
+                    </ul>
+                </li>
+                <li><strong>Output:</strong>
+                    <ul>
+                        <li>An array of objects with deletion status, including repository ID and API response.</li>
+                    </ul>
+                </li>
+            </ul>
+        </section>
+    </div>
+</body>
+</html>

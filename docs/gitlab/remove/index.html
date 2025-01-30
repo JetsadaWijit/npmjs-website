@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remove Collaborators - GitLab Documentation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .code-block {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Remove Collaborators - GitLab Documentation</h1>
+
+        <section>
+            <h2>Code</h2>
+            <pre class="code-block"><code>const axios = require('axios');
+const path = require('path');
+const { readPropertiesFile, replacePlaceholders } = require('../essential');
+
+/**
+ * Generic function to remove collaborators from repositories.
+ *
+ * @param {Array&lt;string&gt;} repoIds - List of repository IDs.
+ * @param {Array&lt;Array&lt;string&gt;&gt;} collaborators - A 2D array of user IDs.
+ * @param {string} token - Authentication token.
+ * @param {Object} replacements - Additional replacements like { group_id }.
+ * @returns {Promise&lt;Array&lt;Object&gt;&gt;} - Array of results per repository.
+ */
+async function removeCollaborators(repoIds, collaborators, token, replacements = {}) {
+    const filePath = path.join(__dirname, 'properties', 'api.properties');
+    const config = readPropertiesFile(filePath);
+
+    if (!config.repocollaboratorurlmember) {
+        throw new Error("API base URL is missing in the configuration.");
+    }
+
+    const baseUrl = config.repocollaboratorurlmember;
+
+    if (!Array.isArray(repoIds) || !Array.isArray(collaborators) || repoIds.length !== collaborators.length) {
+        throw new Error("Invalid input parameters.");
+    }
+
+    const results = [];
+
+    for (let i = 0; i < repoIds.length; i++) {
+        const repoId = repoIds[i];
+        const repoResults = [];
+
+        for (const collaborator of collaborators[i]) {
+            const urlReplacements = { ...replacements, project_id: repoId, user_id: collaborator };
+            const requestUrl = replacePlaceholders(baseUrl, urlReplacements);
+
+            try {
+                const response = await axios.delete(requestUrl, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+
+                repoResults.push({ collaborator, success: true, status: response.status });
+
+            } catch (error) {
+                repoResults.push({
+                    collaborator,
+                    success: false,
+                    status: error.response?.status || 'Unknown',
+                    error: error.response?.data || error.message,
+                });
+            }
+        }
+
+        results.push({ repoId, results: repoResults });
+    }
+
+    return results;
+}
+
+/**
+ * Removes collaborators from repositories owned by a group.
+ */
+async function removeFromGroupRepos(groupId, repoIds, collaborators, token) {
+    return removeCollaborators(repoIds, collaborators, token, { group_id: groupId });
+}
+
+/**
+ * Removes collaborators from personal repositories.
+ */
+async function removeFromPersonalRepos(repoIds, collaborators, token) {
+    return removeCollaborators(repoIds, collaborators, token);
+}
+
+module.exports = { removeFromGroupRepos, removeFromPersonalRepos };</code></pre>
+        </section>
+
+        <section>
+            <h2>Usage</h2>
+            <pre class="code-block"><code>/*
+    @param repoIds = Array
+    @param collaborators = Array
+    @param token = String
+    @param replacements = Object (optional)
+*/
+const { removeFromGroupRepos, removeFromPersonalRepos } = require('jwz/gitlab');
+
+const groupId = 'your-group-id';
+const repoIds = ['repoId1', 'repoId2'];
+const collaborators = [['collaborator1', 'collaborator2'], ['collaborator3']];
+const token = 'your-token';
+
+// Remove collaborators from group repositories
+const resGroup = await removeFromGroupRepos(groupId, repoIds, collaborators, token);
+console.log('Group Repositories:', resGroup);
+
+// Remove collaborators from personal repositories
+const resPersonal = await removeFromPersonalRepos(repoIds, collaborators, token);
+console.log('Personal Repositories:', resPersonal);</code></pre>
+        </section>
+
+        <section>
+            <h2>Explanation</h2>
+            <p>
+                The <code>removeCollaborators</code> function is a utility for removing collaborators from repositories.
+                It reads API configurations from an external properties file and makes authenticated API calls to remove users.
+            </p>
+            <ul>
+                <li><strong>Parameters:</strong>
+                    <ul>
+                        <li><code>repoIds</code>: An array of repository IDs.</li>
+                        <li><code>collaborators</code>: A 2D array mapping repositories to their collaborators.</li>
+                        <li><code>token</code>: An authentication token for API requests.</li>
+                        <li><code>replacements</code>: (Optional) Additional replacements, such as <code>group_id</code>.</li>
+                    </ul>
+                </li>
+                <li><strong>Logic:</strong>
+                    <ul>
+                        <li>Reads API URL from a properties file.</li>
+                        <li>Iterates over repositories and their collaborators.</li>
+                        <li>Makes an API call to remove each collaborator.</li>
+                        <li>Handles errors and stores response details.</li>
+                    </ul>
+                </li>
+                <li><strong>Output:</strong>
+                    <ul>
+                        <li>Returns an array of results indicating success or failure for each collaborator.</li>
+                    </ul>
+                </li>
+            </ul>
+        </section>
+    </div>
+</body>
+</html>

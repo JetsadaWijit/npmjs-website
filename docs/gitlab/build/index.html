@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>buildRepos - GitLab Documentation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .code-block {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">buildRepos - GitLab Documentation</h1>
+
+        <section>
+            <h2>Code</h2>
+            <pre class="code-block"><pre><code class="language-javascript">const axios = require('axios');
+const path = require('path');
+const { readPropertiesFile, replacePlaceholders } = require('../essential');
+
+/**
+ * Creates multiple GitLab repositories.
+ * @param {string} group_id - The GitLab group ID.
+ * @param {Array&lt;string&gt;} repos - List of repository names.
+ * @param {string} vis - Visibility level ('public', 'private', 'internal').
+ * @param {string} token - GitLab API token.
+ * @returns {Promise&lt;Array&lt;Object&gt;&gt;} - List of results for each repository.
+ */
+async function buildRepos(group_id, repos, vis, token) {
+    const filePath = path.join(__dirname, 'properties', 'api.properties');
+    const config = readPropertiesFile(filePath);
+
+    if (!config.repourl) {
+        throw new Error("Repository URL is missing in the configuration.");
+    }
+
+    const retryLimit = 3;
+
+    /**
+     * Creates a GitLab repository with retries.
+     * @param {string} repo - Repository name.
+     * @param {number} attempt - Current retry attempt.
+     * @returns {Promise&lt;Object&gt;} - Response object indicating success/failure.
+     */
+    const createGitLabRepo = async (repo, attempt = 1) => {
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        };
+
+        const url = replacePlaceholders(config.repourl, { group_id });
+
+        const data = {
+            name: repo,
+            visibility: vis,
+        };
+
+        try {
+            const response = await axios.post(url, data, { headers });
+
+            if (response.status === 201) {
+                return { success: true, message: 'GitLab repository created successfully', repositoryName: repo, groupName: group_id };
+            } else {
+                return { success: false, message: `Failed to create GitLab repository`, status: response.status };
+            }
+        } catch (error) {
+            const status = error.response?.status || 'Unknown';
+            const errorMessage = error.response?.data?.message || error.message;
+
+            console.error(`Error creating repository '${repo}' (Attempt ${attempt}/${retryLimit}):`, errorMessage);
+
+            if (attempt < retryLimit) {
+                return await createGitLabRepo(repo, attempt + 1);
+            }
+
+            return { success: false, message: 'Internal server error', status };
+        }
+    };
+
+    return await Promise.all(repos.map(repo => createGitLabRepo(repo)));
+}
+
+module.exports = buildRepos;</code></pre>
+        </section>
+
+        <section>
+            <h2>Usage</h2>
+            <pre class="code-block"><code>/*
+    @param group_id = String
+    @param repos = Array
+    @param vis = String
+    @param token = String
+*/
+const { buildRepos } = require('jwz/gitlab');
+
+const group_id = 'your-group-id';  // Replace with your GitLab group ID
+const repos = ['your-repoA', 'your-repoB'];  // List of repository names
+const vis = 'public';  // Visibility level ('public', 'private', 'internal')
+const token = 'your-token';  // Your GitLab API token
+
+const res = await buildRepos(group_id, repos, vis, token);
+console.log(res);</code></pre>
+        </section>
+
+        <section>
+            <h2>Explanation</h2>
+            <p>
+                The <code>buildRepos</code> function automates GitLab repository creation with retry mechanisms and error handling. Here's a breakdown:
+            </p>
+            <ul>
+                <li><strong>Parameters:</strong>
+                    <ul>
+                        <li><code>group_id</code>: The GitLab group ID where the repositories will be created.</li>
+                        <li><code>repos</code>: An array of repository names.</li>
+                        <li><code>vis</code>: The visibility level (e.g., <code>'public'</code>, <code>'private'</code>, <code>'internal'</code>).</li>
+                        <li><code>token</code>: A GitLab personal access token for authentication.</li>
+                    </ul>
+                </li>
+                <li><strong>Logic:</strong>
+                    <ul>
+                        <li>Reads API URL from a properties file.</li>
+                        <li>Sets up request headers with an authentication token.</li>
+                        <li>Retries failed requests up to 3 times.</li>
+                        <li>Creates repositories by calling the GitLab API.</li>
+                    </ul>
+                </li>
+                <li><strong>Output:</strong>
+                    <ul>
+                        <li>An array of results showing the success status, repository name, and error messages if any.</li>
+                    </ul>
+                </li>
+            </ul>
+        </section>
+    </div>
+</body>
+</html>

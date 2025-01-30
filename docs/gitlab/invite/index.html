@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invite Collaborators - GitLab Documentation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .code-block {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Invite Collaborators - GitLab Documentation</h1>
+
+        <section>
+            <h2>Code</h2>
+            <pre class="code-block"><code>const axios = require('axios');
+const path = require('path');
+const {
+    readPropertiesFile,
+    replacePlaceholders
+} = require('../essential');
+
+const filePath = path.join(__dirname, 'properties', 'api.properties');
+const config = readPropertiesFile(filePath);
+
+if (!config.repocollaboratorurl) {
+    throw new Error(`Collaborator URL is missing in the configuration file: ${filePath}`);
+}
+
+/**
+ * Invite collaborators to group repositories.
+ * @param {string} groupId - The ID of the group.
+ * @param {Array<string>} repoIds - Array of repository IDs.
+ * @param {Array<Array<string>>} collaborators - Array of collaborator IDs per repository.
+ * @param {string} token - Authentication token.
+ * @returns {Promise<Array>} - Results of invitations.
+ */
+async function inviteToGroupRepos(groupId, repoIds, collaborators, token) {
+    if (!groupId || !repoIds.length || !collaborators.length || !token) {
+        throw new Error('Invalid parameters: groupId, repoIds, collaborators, and token are required.');
+    }
+    return inviteCollaborators(groupId, repoIds, collaborators, token);
+}
+
+/**
+ * Invite collaborators to personal repositories.
+ * @param {Array<string>} repoIds - Array of repository IDs.
+ * @param {Array<Array<string>>} collaborators - Array of collaborator IDs per repository.
+ * @param {string} token - Authentication token.
+ * @returns {Promise<Array>} - Results of invitations.
+ */
+async function inviteToPersonalRepos(repoIds, collaborators, token) {
+    if (!repoIds.length || !collaborators.length || !token) {
+        throw new Error('Invalid parameters: repoIds, collaborators, and token are required.');
+    }
+    return inviteCollaborators(null, repoIds, collaborators, token);
+}
+
+/**
+ * Helper function to invite collaborators to repositories.
+ * @param {string|null} groupId - The ID of the group (null for personal repositories).
+ * @param {Array<string>} repoIds - Array of repository IDs.
+ * @param {Array<Array<string>>} collaborators - Array of collaborator IDs per repository.
+ * @param {string} token - Authentication token.
+ * @returns {Promise<Array>} - Results of invitations.
+ */
+async function inviteCollaborators(groupId, repoIds, collaborators, token) {
+    if (repoIds.length !== collaborators.length) {
+        throw new Error('Mismatch: repoIds and collaborators arrays must be of equal length.');
+    }
+
+    return Promise.all(repoIds.map(async (repoId, index) => {
+        const repoResults = await Promise.all(collaborators[index].map(async (collaboratorId) => {
+            if (!collaboratorId) return { collaborator: collaboratorId, success: false, error: "Invalid collaborator ID" };
+
+            const url = replacePlaceholders(config.repocollaboratorurl, {
+                project_id: repoId
+            });
+
+            try {
+                const response = await axios.post(url, {
+                    user_id: collaboratorId,
+                    access_level: 30
+                }, {
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+                });
+            
+                return { collaborator: collaboratorId, success: true, response: response.data };
+            } catch (error) {
+                return { 
+                    collaborator: collaboratorId, 
+                    success: false, 
+                    error: error.response?.data || error.message 
+                };
+            }
+        }));
+
+        return { repoId, results: repoResults };
+    }));
+}
+
+module.exports = { inviteToGroupRepos, inviteToPersonalRepos };</code></pre>
+        </section>
+
+        <section>
+            <h2>Usage</h2>
+            <pre class="code-block"><code>/*
+    @param groupId = String (for group repos)
+    @param repoIds = Array (array of repository IDs)
+    @param collaborators = Array (array of arrays, each containing collaborator IDs for each repo)
+    @param token = String (authentication token)
+*/
+
+const { inviteToGroupRepos, inviteToPersonalRepos } = require('jwz/gitlab'); // Adjust the import path as needed
+
+const groupId = 'your-group-id'; // Replace with your GitLab group ID
+const repoIds = ['repo-id-1', 'repo-id-2']; // List of repository IDs
+const collaborators = [
+    ['collaborator1', 'collaborator2'], // Collaborators for repo 1
+    ['collaborator3', 'collaborator4']  // Collaborators for repo 2
+]; 
+const token = 'your-token'; // Your GitLab API token
+
+// Inviting collaborators to group repositories
+const groupResults = await inviteToGroupRepos(groupId, repoIds, collaborators, token);
+console.log(groupResults);
+
+// Inviting collaborators to personal repositories (if needed)
+const personalResults = await inviteToPersonalRepos(repoIds, collaborators, token);
+console.log(personalResults);</code></pre>
+        </section>
+
+        <section>
+            <h2>Explanation</h2>
+            <p>
+                The <code>inviteToGroupRepos</code> and <code>inviteToPersonalRepos</code> functions facilitate adding collaborators to GitLab repositories. These functions handle API requests efficiently.
+            </p>
+            <ul>
+                <li><strong>Parameters:</strong>
+                    <ul>
+                        <li><code>groupId</code>: The ID of the GitLab group.</li>
+                        <li><code>repoIds</code>: An array of repository IDs.</li>
+                        <li><code>collaborators</code>: A nested array, each containing collaborator IDs for a corresponding repository.</li>
+                        <li><code>token</code>: An authentication token for GitLab API.</li>
+                    </ul>
+                </li>
+                <li><strong>Logic:</strong>
+                    <ul>
+                        <li>Reads API configuration from a properties file.</li>
+                        <li>Validates inputs to ensure correctness.</li>
+                        <li>Iterates over repositories and assigns collaborators.</li>
+                        <li>Handles errors and provides detailed feedback.</li>
+                    </ul>
+                </li>
+                <li><strong>Output:</strong>
+                    <ul>
+                        <li>An array containing success/failure results for each collaborator invitation.</li>
+                    </ul>
+                </li>
+            </ul>
+        </section>
+    </div>
+</body>
+</html>
